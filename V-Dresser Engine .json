@@ -1,0 +1,429 @@
+{
+  "name": "AI Virtual Try-On - WooCommerce Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.5,
+      "position": [
+        -672,
+        -128
+      ],
+      "id": "70e65a76-68be-4dc7-89b8-297b261f0470",
+      "name": "Telegram Trigger",
+      "webhookId": "00000000-0000-0000-0000-000000000000",
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_TELEGRAM_CREDENTIALS_ID",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "fileId": "={{ $json.message.photo.pop().file_id }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -448,
+        -128
+      ],
+      "id": "4b723342-9f97-463c-b7a8-80b0695a9c83",
+      "name": "Get a file",
+      "webhookId": "00000000-0000-0000-0000-000000000000",
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_TELEGRAM_CREDENTIALS_ID",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d7cb8f72-c10a-485f-b61a-89e7bae674c5",
+              "name": "product_id",
+              "value": "={{ $('Telegram Trigger').item.json.message.caption }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        -224,
+        -128
+      ],
+      "id": "a3534b55-7e67-4cee-98d3-4ffda7145261",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// دسترسی مستقیم به داده باینری ورودی\nconst binaryData = await this.helpers.getBinaryDataBuffer(0, 'data');\nconst base64Image = binaryData.toString('base64');\n\nreturn {\n  json: {\n    product_id: $input.item.json.product_id,\n    image_base64: `data:image/jpeg;base64,${base64Image}`\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        -128
+      ],
+      "id": "24d84d40-3b63-4b95-ac9d-e06a5986dbe1",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gemini-3.1-flash-lite-image",
+          "mode": "list",
+          "cachedResultName": "GEMINI-3.1-FLASH-LITE-IMAGE"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "=You are a professional fashion photo editor. \nTake the garment from the first image and realistically place it on the human model in the second image.\n- Preserve the exact colors, fabric texture, patterns, and lighting of the garment.\n- Adjust the fit naturally to the model's body shape and pose.\n- Use soft studio lighting and neutral background.\n- Output a high-resolution, photorealistic e-commerce photo."
+            },
+            {
+              "type": "image",
+              "imageUrl": "=={{ $('Redis').item.json.garment_data ? JSON.parse($('Redis').item.json.garment_data).garment_base64 : 'https://via.placeholder.com/150' }}"
+            },
+            {
+              "type": "image",
+              "imageUrl": "={{ $('Code in JavaScript').item.json.image_base64 }}"
+            }
+          ]
+        },
+        "simplify": false,
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        688,
+        -256
+      ],
+      "id": "c22beadb-fa6f-4043-ac60-054a9501bf7b",
+      "name": "Message a model",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "openAiApi": {
+          "id": "YOUR_OPENAI_CREDENTIALS_ID",
+          "name": "OpenAI account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "garment_data",
+        "key": "={{ 'user_' + $('Telegram Trigger').item.json.message.chat.id }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        224,
+        -128
+      ],
+      "id": "0da865b8-c9ea-4414-b119-81ed754ae28d",
+      "name": "Redis",
+      "credentials": {
+        "redis": {
+          "id": "YOUR_REDIS_CREDENTIALS_ID",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "f5cad7a4-ddbe-4bf4-a051-1d49dae0786c",
+              "leftValue": "={{ $json.garment_data }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        448,
+        -128
+      ],
+      "id": "ed31627f-d3c5-4720-a156-4752015b6d2d",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "={{ 'user_' + $('Telegram Trigger').item.json.message.chat.id }}",
+        "value": "={ \"product_id\": \"{{ $('Code in JavaScript').item.json.product_id }}\", \"garment_base64\": \"{{ $('Code in JavaScript').item.json.image_base64 }}\" }",
+        "expire": true,
+        "ttl": 1800
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        656,
+        48
+      ],
+      "id": "cd4b6803-e1f7-46ac-97b5-7fa407b6f17a",
+      "name": "Redis1",
+      "credentials": {
+        "redis": {
+          "id": "YOUR_REDIS_CREDENTIALS_ID",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "=✅ عکس لباس و کد محصول دریافت شد\n\n📸 لطفاً الان عکس مدلی که می‌خواهید لباس روی آن پرو شود را ارسال کنید.",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        912,
+        48
+      ],
+      "id": "d827c9d6-07f9-4dd7-9506-4c4f2f5d0d13",
+      "name": "Send a text message",
+      "webhookId": "00000000-0000-0000-0000-000000000000",
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_TELEGRAM_CREDENTIALS_ID",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "key": "={{ 'user_' + $('Telegram Trigger').item.json.message.chat.id }}"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1472,
+        -256
+      ],
+      "id": "4d410fac-a55d-4798-85da-6d221b3813a9",
+      "name": "Redis2",
+      "credentials": {
+        "redis": {
+          "id": "YOUR_REDIS_CREDENTIALS_ID",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// استخراج رشته Base64 خروجی از مدل\nconst rawBase64 = $input.item.json.output[0].result;\n\n// تبدیل Base64 به فایل باینری جهت ارسال در تلگرام\nconst imageBuffer = Buffer.from(rawBase64, 'base64');\n\nreturn [\n  {\n    json: {\n      status: \"success\"\n    },\n    binary: {\n      data: await this.helpers.prepareBinaryData(imageBuffer, 'final_tryon.jpg', 'image/jpeg')\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1024,
+        -256
+      ],
+      "id": "80b167db-980f-4156-ad77-81d3472ca0c4",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "operation": "sendPhoto",
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "binaryData": true,
+        "additionalFields": {
+          "caption": "=✨ پرو مجازی هوشمند انجام شد!\n\n👕 کد محصول: {{ $('Redis').item.json.garment_data ? JSON.parse($('Redis').item.json.garment_data).product_id : '' }}\n\n\n📸 نتیجه: پرو لباس روی مدل اختصاصی شما\n\n💡 تولیدشده توسط سیستم هوش مصنوعی",
+          "parse_mode": "Markdown"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1248,
+        -256
+      ],
+      "id": "63b01f9c-e895-4095-b236-3b3fd8eadea4",
+      "name": "Send a photo message",
+      "webhookId": "00000000-0000-0000-0000-000000000000",
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_TELEGRAM_CREDENTIALS_ID",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get a file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get a file": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Redis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Redis1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis1": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Send a photo message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a photo message": {
+      "main": [
+        [
+          {
+            "node": "Redis2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "00000000-0000-0000-0000-000000000000",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "nodeGroups": [],
+  "id": "workflow-template",
+  "tags": []
+}
